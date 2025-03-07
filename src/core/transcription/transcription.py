@@ -2,10 +2,9 @@ import os
 from dotenv import load_dotenv
 from azure.cognitiveservices.speech import SpeechConfig, AudioConfig, SpeechRecognizer
 from azure.cognitiveservices.speech.audio import PullAudioInputStreamCallback
-import requests
-from pytube import YouTube
-from pydub import AudioSegment
+import yt_dlp
 import tempfile
+from moviepy import AudioFileClip
 
 # Load environment variables from .env
 load_dotenv()
@@ -17,33 +16,51 @@ AZURE_REGION = os.getenv("AZURE_REGION")
 if not AZURE_SPEECH_KEY or not AZURE_REGION:
     raise ValueError("Azure Speech key or region is not set in the .env file.")
 
-# Helper function to download audio from YouTube
 def download_audio_from_url(url: str) -> str:
-    """Downloads audio from a YouTube URL and converts it to WAV format."""
+    """Downloads audio from a YouTube URL and converts it to WAV format using yt-dlp."""
     try:
-        yt = YouTube(url)
-        stream = yt.streams.filter(only_audio=True).first()
-        print(f"Downloading audio: {yt.title}")
-        audio_file = stream.download()
-        
-        # Convert to WAV format using pydub
+        # Define yt-dlp options
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Define yt-dlp options with a proper outtmpl template
+            ydl_opts = {
+                'format': 'bestaudio/best',
+                'outtmpl': os.path.join(temp_dir, '%(title)s.%(ext)s'),  # Template for output filename
+                'quiet': True,  # Suppress yt-dlp output
+            }
+
+        print(f"Downloading audio from: {url}")
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info_dict = ydl.extract_info(url, download=True)
+            downloaded_file = ydl.prepare_filename(info_dict)
+
+        # Create a temporary file for the WAV output
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_wav_file:
+            wav_path = temp_wav_file.name
+
+        # Convert downloaded audio to WAV using moviepy
         print("Converting audio to WAV format...")
-        audio = AudioSegment.from_file(audio_file)
-        temp_wav = tempfile.NamedTemporaryFile(delete=False, suffix=".wav")
-        audio.export(temp_wav.name, format="wav")
+        audio_clip = AudioFileClip(downloaded_file)
+        audio_clip.write_audiofile(wav_path, codec='pcm_s16le')
+        audio_clip.close()
+
+
+        # Clean up the intermediate .webm file
+        os.remove(downloaded_file)
         
-        return temp_wav.name
+        # TODO: do we need to delete the wav file at a later stage?
+        return wav_path
     except Exception as e:
         raise RuntimeError(f"Failed to download or convert audio: {str(e)}")
 
-# Transcription function
 def transcribe_audio(audio_path: str) -> str:
     """Transcribes audio to text using Azure Speech Service."""
     speech_config = SpeechConfig(subscription=AZURE_SPEECH_KEY, region=AZURE_REGION)
     audio_config = AudioConfig(filename=audio_path)
     speech_recognizer = SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
 
-    print("Starting transcription...")
+    audio_file_name = os.path.basename(audio_path)
+    print(f"Starting transcription of file {audio_file_name}")
+    # TODO: replace by .start_continuous_recognition_async for audio files > 30s
     result = speech_recognizer.recognize_once()
 
     if result.reason == result.Reason.RecognizedSpeech:
@@ -77,7 +94,7 @@ def process_audio_from_url(url: str) -> str:
 # Example Usage
 if __name__ == "__main__":
     # Replace this with the actual URL of a YouTube video or other audio source
-    youtube_url = "https://www.youtube.com/watch?v=your_video_id"
+    youtube_url = "https://www.youtube.com/watch?v=B9vR1MDuEGk"
     transcription = process_audio_from_url(youtube_url)
     
     if transcription:
