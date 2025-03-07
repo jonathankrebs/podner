@@ -4,6 +4,8 @@ from azure.cognitiveservices.speech import SpeechConfig, AudioConfig, SpeechReco
 from azure.cognitiveservices.speech.audio import PullAudioInputStreamCallback
 import yt_dlp
 import tempfile
+import json
+import datetime
 from moviepy import AudioFileClip
 
 # Load environment variables from .env
@@ -43,46 +45,62 @@ def download_audio_from_url(url: str) -> str:
         audio_clip.write_audiofile(wav_path, codec='pcm_s16le')
         audio_clip.close()
 
-
         # Clean up the intermediate .webm file
         os.remove(downloaded_file)
         
-        # TODO: do we need to delete the wav file at a later stage?
         return wav_path
     except Exception as e:
         raise RuntimeError(f"Failed to download or convert audio: {str(e)}")
 
 def transcribe_audio(audio_path: str) -> str:
     """Transcribes audio to text using Azure Speech Service."""
-    speech_config = SpeechConfig(subscription=AZURE_SPEECH_KEY, region=AZURE_REGION)
-    audio_config = AudioConfig(filename=audio_path)
-    speech_recognizer = SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
+    # speech_config = SpeechConfig(subscription=AZURE_SPEECH_KEY, region=AZURE_REGION)
+    # audio_config = AudioConfig(filename=audio_path)
+    # speech_recognizer = SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
 
-    audio_file_name = os.path.basename(audio_path)
-    print(f"Starting transcription of file {audio_file_name}")
-    # TODO: replace by .start_continuous_recognition_async for audio files > 30s
-    result = speech_recognizer.recognize_once()
+    # audio_file_name = os.path.basename(audio_path)
+    # print(f"Starting transcription of file {audio_file_name}")
+    # # TODO: replace by .start_continuous_recognition_async for audio files > 30s
+    # result = speech_recognizer.recognize_once()
 
-    if result.reason == result.Reason.RecognizedSpeech:
-        print("Transcription successful!")
-        return result.text
-    elif result.reason == result.Reason.NoMatch:
-        print("No speech could be recognized.")
-        return ""
-    else:
-        print(f"Speech recognition failed. Reason: {result.reason}")
-        return ""
+    # if result.reason == result.Reason.RecognizedSpeech:
+    #     print("Transcription successful!")
+    #     return result.text
+    # elif result.reason == result.Reason.NoMatch:
+    #     print("No speech could be recognized.")
+    #     return ""
+    # else:
+    #     print(f"Speech recognition failed. Reason: {result.reason}")
+    #     return ""
+    return "This is a test ABCBCAIBCITSENRDI"
 
-# Main function
+def save_transcription_to_json(transcription: str) -> str:
+    transcription_data = {
+            "source_url": youtube_url,
+            "transcription_text": transcription,
+            # "audio_filename": os.path.basename(audio_path) if audio_path else None,
+            "audio_filename": "test.wav", # TODO: pass meta info
+            "transcription_date": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "audio_source_date": "07-03-2025", # TODO: read from info_dict?
+            "duration_seconds": "1min 30s" # TODO: read from info_dict?
+    }
+
+    transcription_dir = "data/transcriptions"
+    json_filename = f"transcription_{datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%d%H%M%S')}.json"
+    json_filepath = os.path.join(transcription_dir, json_filename)
+    with open(json_filepath, "w", encoding="utf-8") as json_file:
+        json.dump(transcription_data, json_file, ensure_ascii=False, indent=4)
+    print(f"Transcription saved to {json_filepath}")
+    return json_filepath
+
 def process_audio_from_url(url: str) -> str:
-    """Processes audio from a URL and returns the transcription."""
+    """Processes audio from a URL and returns the transcription file path"""
     try:
-        # Download and prepare audio
         audio_path = download_audio_from_url(url)
-        
-        # Transcribe the audio
         transcription = transcribe_audio(audio_path)
-        
+        if transcription:
+            return save_transcription_to_json(transcription)
+
         # Clean up temporary audio file
         os.remove(audio_path)
         
@@ -91,9 +109,7 @@ def process_audio_from_url(url: str) -> str:
         print(f"Error processing audio: {str(e)}")
         return ""
 
-# Example Usage
 if __name__ == "__main__":
-    # Replace this with the actual URL of a YouTube video or other audio source
     youtube_url = "https://www.youtube.com/watch?v=B9vR1MDuEGk"
     transcription = process_audio_from_url(youtube_url)
     
