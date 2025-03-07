@@ -1,5 +1,6 @@
 import os
 from dotenv import load_dotenv
+import azure.cognitiveservices.speech as speechsdk
 from azure.cognitiveservices.speech import SpeechConfig, AudioConfig, SpeechRecognizer
 from azure.cognitiveservices.speech.audio import PullAudioInputStreamCallback
 import yt_dlp
@@ -54,25 +55,24 @@ def download_audio_from_url(url: str) -> str:
 
 def transcribe_audio(audio_path: str) -> str:
     """Transcribes audio to text using Azure Speech Service."""
-    # speech_config = SpeechConfig(subscription=AZURE_SPEECH_KEY, region=AZURE_REGION)
-    # audio_config = AudioConfig(filename=audio_path)
-    # speech_recognizer = SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
+    speech_config = SpeechConfig(subscription=AZURE_SPEECH_KEY, region=AZURE_REGION)
+    audio_config = AudioConfig(filename=audio_path)
+    speech_recognizer = SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
 
-    # audio_file_name = os.path.basename(audio_path)
-    # print(f"Starting transcription of file {audio_file_name}")
-    # # TODO: replace by .start_continuous_recognition_async for audio files > 30s
-    # result = speech_recognizer.recognize_once()
+    audio_file_name = os.path.basename(audio_path)
+    print(f"Starting transcription of file {audio_file_name}")
+    # TODO: replace by .start_continuous_recognition_async for audio files > 30s
+    result = speech_recognizer.recognize_once()
 
-    # if result.reason == result.Reason.RecognizedSpeech:
-    #     print("Transcription successful!")
-    #     return result.text
-    # elif result.reason == result.Reason.NoMatch:
-    #     print("No speech could be recognized.")
-    #     return ""
-    # else:
-    #     print(f"Speech recognition failed. Reason: {result.reason}")
-    #     return ""
-    return "This is a test ABCBCAIBCITSENRDI"
+    if result.reason == speechsdk.ResultReason.RecognizedSpeech:
+        print("Transcription successful!")
+        return result.text
+    elif result.reason == speechsdk.ResultReason.NoMatch:
+        print("No speech could be recognized.")
+        return ""
+    else:
+        print(f"Speech recognition failed. Reason: {result.reason}")
+        return ""
 
 def save_transcription_to_json(transcription: str) -> str:
     transcription_data = {
